@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Escalade EPS - Gestion & Calcul de Séance</title>
+    <!-- Chargement de Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Police Google Fonts : Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Configuration Tailwind personnalisée -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        alpine: {
+                            50: '#f0f7ff',
+                            100: '#e0effe',
+                            500: '#0284c7',
+                            600: '#0369a1',
+                            700: '#075985',
+                            800: '#0c4a6e',
+                            900: '#082f49',
+                        },
+                        crag: {
+                            400: '#fb923c',
+                            500: '#f97316',
+                            600: '#ea580c',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Styles utilitaires légers pour transitions fluides et barres de défilement propres */
+        html {
+            scroll-behavior: smooth;
+        }
+        .table-scroll::-webkit-scrollbar {
+            height: 6px;
+        }
+        .table-scroll::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 9999px;
+        }
+        .table-scroll::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 9999px;
+        }
+        .table-scroll::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans antialiased min-h-screen flex flex-col">
+
+    <!-- En-tête principal sportif -->
+    <header class="bg-gradient-to-r from-slate-900 via-alpine-900 to-slate-900 text-white shadow-lg sticky top-0 z-30">
+        <div class="max-w-5xl mx-auto px-4 py-4 sm:py-5 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <!-- Icône montagne / mousqueton SVG -->
+                <div class="bg-crag-500 p-2.5 rounded-xl shadow-md flex-shrink-0">
+                    <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 20l6.5-11 4.5 7 3.5-5L21 20H3z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.5 9l2.5 3 2-2"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-xl sm:text-2xl font-extrabold tracking-tight">Fiche Séance Escalade</h1>
+                    <p class="text-xs sm:text-sm text-slate-300">Calculateur de points par cordée & bilan de sécurité</p>
+                </div>
+            </div>
+
+            <!-- Indicateur de score en direct + Bouton Barème -->
+            <div class="flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                <button type="button" id="toggleBaremeBtn" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs sm:text-sm font-semibold transition border border-white/15">
+                    <svg class="w-4 h-4 text-crag-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                    </svg>
+                    <span>Barème des voies</span>
+                    <svg id="baremeChevron" class="w-4 h-4 transition-transform duration-200" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                </button>
+
+                <div class="bg-slate-800/90 border border-slate-700 px-3.5 py-1.5 rounded-xl text-right">
+                    <span class="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Total Séance</span>
+                    <span id="headerTotalScore" class="text-base sm:text-lg font-extrabold text-crag-400">0 pt</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Accordéon discret du Barème complet (masqué par défaut) -->
+        <div id="baremeDrawer" class="hidden bg-slate-900/95 border-t border-slate-700/80 shadow-inner">
+            <div class="max-w-5xl mx-auto px-4 py-4">
+                <div class="flex items-center justify-between mb-2">
+                    <h2 class="text-sm font-bold text-white flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-crag-500"></span>
+                        Barème officiel des voies d'escalade (points par hauteur atteinte)
+                    </h2>
+                    <button type="button" id="closeBaremeBtn" class="text-xs text-slate-400 hover:text-white underline">Fermer</button>
+                </div>
+                <div class="overflow-x-auto table-scroll rounded-xl border border-slate-700">
+                    <table class="w-full text-xs text-center border-collapse">
+                        <thead>
+                            <tr class="bg-slate-800 text-slate-200 font-bold">
+                                <th class="py-2 px-3 text-left sticky left-0 bg-slate-800 z-10 border-r border-slate-700">Hauteur</th>
+                                <th class="py-2 px-2.5 border-r border-slate-700/60">Voie 1</th>
+                                <th class="py-2 px-2.5 border-r border-slate-700/60">Voie 2</th>
+                                <th class="py-2 px-2.5 border-r border-slate-700/60">Voie 3</th>
+                                <th class="py-2 px-2.5 border-r border-slate-700/60">Voie 4</th>
+                                <th class="py-2 px-2.5 border-r border-slate-700/60">Voie 5</th>
+                                <th class="py-2 px-2.5 border-r border-slate-700/60">Voie 6</th>
+                                <th class="py-2 px-2.5 border-r border-slate-700/60">Voie 7</th>
+                                <th class="py-2 px-2.5 border-r border-slate-700/60">Voie 8</th>
+                                <th class="py-2 px-2.5 border-r border-slate-700/60">Voie 9</th>
+                                <th class="py-2 px-2.5 border-r border-slate-700/60">Voie 10</th>
+                                <th class="py-2 px-2.5 border-r border-slate-700/60">Voie 11</th>
+                                <th class="py-2 px-2.5 border-r border-slate-700/60">Voie 12</th>
+                                <th class="py-2 px-2.5">Voie 13</th>
+                            </tr>
+                        </thead>
+                        <tbody id="baremeTableBody" class="divide-y divide-slate-800 text-slate-300 bg-slate-900">
+                            <!-- Rempli dynamiquement en JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Contenu principal -->
+    <main class="flex-grow max-w-5xl w-full mx-auto px-4 py-6 sm:py-8 space-y-6 sm:space-y-8">
+
+        <!-- ===================================================================== -->
+        <!-- ÉTAPE 1 : CONFIGURATION DU GROUPE                                     -->
+        <!-- ===================================================================== -->
+        <section class="bg-white rounded-2xl shadow-sm border border-slate-200/90 overflow-hidden">
+            <div class="bg-slate-800 text-white px-5 py-3.5 flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                    <span class="bg-crag-500 text-white text-xs font-extrabold px-2.5 py-1 rounded-lg">ÉTAPE 1</span>
+                    <h2 class="font-bold text-base sm:text-lg">Composition du groupe</h2>
+                </div>
+                <span class="text-xs text-slate-300 hidden sm:inline">Paramétrage de la cordée</span>
+            </div>
+
+            <div class="p-5 sm:p-6 space-y-5">
+                <!-- Question effectif -->
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-alpine-50/70 p-4 rounded-xl border border-alpine-100">
+                    <label for="groupSizeSelect" class="font-semibold text-slate-800 text-sm sm:text-base">
+                        Combien de personnes compose votre groupe ?
+                    </label>
+                    <select id="groupSizeSelect" class="w-full sm:w-52 bg-white border border-slate-300 text-slate-900 font-bold text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-alpine-500 focus:border-alpine-500 shadow-sm cursor-pointer">
+                        <option value="3">3 personnes</option>
+                        <option value="4" selected>4 personnes</option>
+                    </select>
+                </div>
+
+                <!-- Saisie des prénoms -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" id="climbersInputsContainer">
+                    <div>
+                        <label for="climberName1" class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Grimpeur 1 : Prénom à inscrire</label>
+                        <input type="text" id="climberName1" placeholder="Ex : Léo" class="climber-name-input w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-alpine-500 focus:border-alpine-500 transition" data-index="0">
+                    </div>
+                    <div>
+                        <label for="climberName2" class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Grimpeur 2 : Prénom à inscrire</label>
+                        <input type="text" id="climberName2" placeholder="Ex : Chloé" class="climber-name-input w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-alpine-500 focus:border-alpine-500 transition" data-index="1">
+                    </div>
+                    <div>
+                        <label for="climberName3" class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Grimpeur 3 : Prénom à inscrire</label>
+                        <input type="text" id="climberName3" placeholder="Ex : Lucas" class="climber-name-input w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-alpine-500 focus:border-alpine-500 transition" data-index="2">
+                    </div>
+                    <div id="climber4Wrapper">
+                        <label for="climberName4" class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Grimpeur 4 : Prénom à inscrire</label>
+                        <input type="text" id="climberName4" placeholder="Ex : Emma" class="climber-name-input w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-alpine-500 focus:border-alpine-500 transition" data-index="3">
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===================================================================== -->
+        <!-- ÉTAPES 2, 3, 4 : CONTENEUR DES 3 VOIES (GÉNÉRÉ DYNAMIQUEMENT)          -->
+        <!-- ===================================================================== -->
+        <div id="routesContainer" class="space-y-6 sm:space-y-8">
+            <!-- Les sections 1ère Voie, 2ème Voie et 3ème Voie sont injectées ici -->
+        </div>
+
+        <!-- ===================================================================== -->
+        <!-- ÉTAPE 5 : FAUTES DE SÉCURITÉ & BILAN INTERMÉDIAIRE                    -->
+        <!-- ===================================================================== -->
+        <section class="bg-white rounded-2xl shadow-sm border border-slate-200/90 overflow-hidden">
+            <div class="bg-slate-800 text-white px-5 py-3.5 flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                    <span class="bg-red-500 text-white text-xs font-extrabold px-2.5 py-1 rounded-lg">ÉTAPE 5</span>
+                    <h2 class="font-bold text-base sm:text-lg">Sécurité & Bilan des points de la séance</h2>
+                </div>
+                <span class="text-xs text-slate-300 hidden sm:inline">-3 pts par faute</span>
+            </div>
+
+            <div class="p-5 sm:p-6 space-y-6">
+                <!-- Sélecteur fautes de sécurité -->
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-red-50/70 p-4 rounded-xl border border-red-200/80">
+                    <div>
+                        <label for="safetyFaultsSelect" class="font-bold text-slate-800 text-sm sm:text-base block">
+                            Nombre de fautes sécurité du groupe
+                        </label>
+                        <p class="text-xs text-slate-600 mt-0.5">Chaque faute sécurité entraîne une pénalité de <strong>3 points</strong>.</p>
+                    </div>
+                    <select id="safetyFaultsSelect" class="w-full sm:w-52 bg-white border border-red-300 text-slate-900 font-bold text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-red-500 shadow-sm cursor-pointer">
+                        <option value="0" selected>0 faute (0 pt)</option>
+                        <option value="1">1 faute (-3 pts)</option>
+                        <option value="2">2 fautes (-6 pts)</option>
+                        <option value="3">3 fautes (-9 pts)</option>
+                        <option value="4">4 fautes (-12 pts)</option>
+                        <option value="5">5 fautes (-15 pts)</option>
+                        <option value="6">6 fautes (-18 pts)</option>
+                        <option value="7">7 fautes (-21 pts)</option>
+                    </select>
+                </div>
+
+                <!-- Tableau intermédiaire demandé dans le document -->
+                <div class="overflow-x-auto table-scroll rounded-xl border border-slate-200">
+                    <table class="w-full text-sm text-center border-collapse">
+                        <thead>
+                            <tr class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                                <th class="py-3 px-3 border-r border-slate-200">Total Points 1ère Voie</th>
+                                <th class="py-3 px-3 border-r border-slate-200">Total Points 2ème Voie</th>
+                                <th class="py-3 px-3 border-r border-slate-200">Total Points 3ème Voie</th>
+                                <th class="py-3 px-3 border-r border-slate-200 text-red-700 bg-red-50/60">Points pénalités</th>
+                                <th class="py-3 px-4 bg-alpine-700 text-white">Nombre total de points sur la séance</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="font-extrabold text-base sm:text-lg bg-white">
+                                <td id="summaryRoute1Total" class="py-4 px-3 border-r border-slate-200 text-slate-800">0</td>
+                                <td id="summaryRoute2Total" class="py-4 px-3 border-r border-slate-200 text-slate-800">0</td>
+                                <td id="summaryRoute3Total" class="py-4 px-3 border-r border-slate-200 text-slate-800">0</td>
+                                <td id="summaryPenaltyPoints" class="py-4 px-3 border-r border-slate-200 text-red-600 bg-red-50/30">0</td>
+                                <td id="summarySessionTotal" class="py-4 px-4 bg-alpine-50 text-alpine-900 text-xl">0</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===================================================================== -->
+        <!-- ÉTAPE 6 : TABLEAU DES RÉSULTATS FINAUX & ENVOI PAR MAIL               -->
+        <!-- ===================================================================== -->
+        <section class="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
+            <div class="bg-gradient-to-r from-alpine-800 to-slate-900 text-white px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div class="flex items-center gap-2.5">
+                    <span class="bg-emerald-500 text-white text-xs font-extrabold px-2.5 py-1 rounded-lg">RÉSULTATS FINAUX</span>
+                    <h2 class="font-bold text-base sm:text-lg">Tableau récapitulatif de la séance</h2>
+                </div>
+                <span id="completionStatusBadge" class="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full bg-amber-500/20 text-amber-200 border border-amber-400/30">
+                    Saisie en cours...
+                </span>
+            </div>
+
+            <div class="p-5 sm:p-6 space-y-6">
+                <!-- Tableau final structuré exactement selon le cahier des charges -->
+                <div class="overflow-x-auto table-scroll rounded-xl border border-slate-300 shadow-sm">
+                    <table class="w-full text-xs sm:text-sm text-center border-collapse" id="finalResultsTable">
+                        <thead>
+                            <!-- Ligne 1 d'en-tête -->
+                            <tr class="bg-slate-800 text-white font-bold">
+                                <th rowspan="2" class="py-3 px-3 border-r border-slate-600 text-left min-w-[120px] sticky left-0 bg-slate-800 z-10">Grimpeur</th>
+                                <th colspan="2" id="finalHeaderV1" class="py-2.5 px-3 border-r border-slate-600 bg-alpine-800">Voie N° 1</th>
+                                <th colspan="2" id="finalHeaderV2" class="py-2.5 px-3 border-r border-slate-600 bg-alpine-700">Voie N° 2</th>
+                                <th colspan="2" id="finalHeaderV3" class="py-2.5 px-3 border-r border-slate-600 bg-alpine-800">Voie N° 3</th>
+                                <th rowspan="2" class="py-3 px-3 border-r border-slate-600 bg-red-900/90 min-w-[95px]">Points pénalités</th>
+                                <th rowspan="2" class="py-3 px-3 bg-emerald-800 min-w-[125px]">Nombre total de points sur la séance</th>
+                            </tr>
+                            <!-- Ligne 2 d'en-tête -->
+                            <tr class="bg-slate-700 text-slate-100 font-semibold text-xs">
+                                <th class="py-2 px-2.5 border-r border-slate-600 min-w-[100px]">Hauteur Atteinte</th>
+                                <th class="py-2 px-2.5 border-r border-slate-600 min-w-[90px]">Points obtenus</th>
+                                <th class="py-2 px-2.5 border-r border-slate-600 min-w-[100px]">Hauteur Atteinte</th>
+                                <th class="py-2 px-2.5 border-r border-slate-600 min-w-[90px]">Points obtenus</th>
+                                <th class="py-2 px-2.5 border-r border-slate-600 min-w-[100px]">Hauteur Atteinte</th>
+                                <th class="py-2 px-2.5 border-r border-slate-600 min-w-[90px]">Points obtenus</th>
+                            </tr>
+                        </thead>
+                        <tbody id="finalResultsBody" class="divide-y divide-slate-200 bg-white">
+                            <!-- Lignes des grimpeurs + ligne Total Voie générées dynamiquement -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Message d'aide tant que toutes les données ne sont pas remplies -->
+                <div id="incompleteNotice" class="bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex items-start gap-3 text-amber-800 text-xs sm:text-sm">
+                    <svg class="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <div>
+                        <p class="font-bold">Saisie partielle — l'envoi par mail reste possible à tout moment :</p>
+                        <p id="missingFieldsText" class="mt-0.5 text-amber-700">Les champs non remplis apparaîtront comme « Non renseigné » dans le récapitulatif.</p>
+                    </div>
+                </div>
+
+                <!-- Zone d'envoi (toujours visible et active) -->
+                <div id="sendActionsZone" class="space-y-4 pt-1">
+                    <div id="sendBannerCard" class="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 transition-colors">
+                        <div class="flex items-center gap-3">
+                            <div id="sendBannerIcon" class="bg-alpine-600 text-white p-2 rounded-full flex-shrink-0">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <p id="sendBannerTitle" class="font-bold text-slate-900 text-sm sm:text-base">Envoyer la fiche de séance par mail</p>
+                                <p class="text-xs text-slate-600">Destinataire : <span class="font-semibold text-slate-800">romain.griot@gmail.com</span></p>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
+                            <button type="button" id="previewEmailBtn" class="px-4 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-semibold text-xs sm:text-sm transition shadow-sm cursor-pointer">
+                                Prévisualiser le mail
+                            </button>
+                            <button type="button" id="sendEmailBtn" class="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-crag-500 hover:bg-crag-600 active:scale-[0.99] text-white font-extrabold text-sm sm:text-base transition shadow-md cursor-pointer">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                                </svg>
+                                <span>Envoyer les résultats</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Panneau de prévisualisation + copie rapide (masqué par défaut) -->
+                    <div id="emailPreviewBox" class="hidden bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Aperçu du message prêt à envoyer</span>
+                            <button type="button" id="copyResultsBtn" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-alpine-600 hover:bg-alpine-700 text-white text-xs font-semibold transition cursor-pointer">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                                </svg>
+                                <span id="copyBtnText">Copier le récapitulatif</span>
+                            </button>
+                        </div>
+                        <pre id="emailPreviewContent" class="text-xs font-mono bg-white p-3.5 rounded-lg border border-slate-200 overflow-x-auto text-slate-700 whitespace-pre-wrap"></pre>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Bouton de réinitialisation discret -->
+        <div class="flex justify-center pb-4">
+            <button type="button" id="resetAppBtn" class="text-xs text-slate-500 hover:text-red-600 font-medium underline transition">
+                Réinitialiser toute la fiche de séance
+            </button>
+        </div>
+
+    </main>
+
+    <!-- Notification Toast personnalisée (remplace alert()) -->
+    <div id="toastNotification" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none">
+        <div class="bg-slate-900 text-white px-4 py-3 rounded-xl shadow-xl border border-slate-700 flex items-center gap-2.5 text-sm font-medium">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+            <span id="toastMessage">Action effectuée</span>
+        </div>
+    </div>
+
+    <!-- Boîte de dialogue de confirmation personnalisée (remplace confirm()) -->
+    <div id="confirmModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <h3 class="text-lg font-extrabold text-slate-900">Réinitialiser la séance ?</h3>
+            <p class="text-sm text-slate-600">Toutes les données saisies (prénoms, voies, hauteurs et fautes) seront effacées.</p>
+            <div class="flex justify-end gap-2.5 pt-2">
+                <button type="button" id="cancelResetBtn" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold transition">Annuler</button>
+                <button type="button" id="confirmResetBtn" class="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold transition">Oui, effacer</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * =========================================================================
+         * 1. DONNÉES DU BARÈME OFFICIEL DES VOIES D'ESCALADE (1 À 13)
+         * =========================================================================
+         */
+        const HEIGHT_LEVELS = [
+            "1er Spitz",
+            "2ème Spitz",
+            "3ème Spitz",
+            "4ème Spitz",
+            "TOP"
+        ];
+
+        const ROUTES_SCALE = {
+            1:  { "1er Spitz": 3, "2ème Spitz": 3.5, "3ème Spitz": 4,   "4ème Spitz": 4.5, "TOP": 5 },
+            2:  { "1er Spitz": 3, "2ème Spitz": 4,   "3ème Spitz": 5,   "4ème Spitz": 6,   "TOP": 7 },
+            3:  { "1er Spitz": 3, "2ème Spitz": 3.5, "3ème Spitz": 4,   "4ème Spitz": 4.5, "TOP": 5 },
+            4:  { "1er Spitz": 3, "2ème Spitz": 4,   "3ème Spitz": 5,   "4ème Spitz": 6,   "TOP": 7 },
+            5:  { "1er Spitz": 3, "2ème Spitz": 4,   "3ème Spitz": 5,   "4ème Spitz": 6,   "TOP": 7 },
+            6:  { "1er Spitz": 3, "2ème Spitz": 3.5, "3ème Spitz": 4,   "4ème Spitz": 4.5, "TOP": 5 },
+            7:  { "1er Spitz": 4, "2ème Spitz": 5,   "3ème Spitz": 6,   "4ème Spitz": 7,   "TOP": 8 },
+            8:  { "1er Spitz": 3, "2ème Spitz": 3.5, "3ème Spitz": 4,   "4ème Spitz": 4.5, "TOP": 5 },
+            9:  { "1er Spitz": 4, "2ème Spitz": 5,   "3ème Spitz": 6,   "4ème Spitz": 7,   "TOP": 8 },
+            10: { "1er Spitz": 3, "2ème Spitz": 5,   "3ème Spitz": 6.5, "4ème Spitz": 8,   "TOP": 10 },
+            11: { "1er Spitz": 3, "2ème Spitz": 5,   "3ème Spitz": 6.5, "4ème Spitz": 8,   "TOP": 10 },
+            12: { "1er Spitz": 4, "2ème Spitz": 5,   "3ème Spitz": 6,   "4ème Spitz": 7,   "TOP": 9 },
+            13: { "1er Spitz": 4, "2ème Spitz": 5,   "3ème Spitz": 6,   "4ème Spitz": 7,   "TOP": 9 }
+        };
+
+        const ROUTE_LABELS = [
+            { index: 0, title: "1ère Voie", badgeColor: "bg-alpine-600" },
+            { index: 1, title: "2ème Voie", badgeColor: "bg-alpine-700" },
+            { index: 2, title: "3ème Voie", badgeColor: "bg-alpine-800" }
+        ];
+
+        /**
+         * =========================================================================
+         * 2. ÉTAT GLOBAL DE L'APPLICATION
+         * =========================================================================
+         */
+        let appState = {
+            groupSize: 4,
+            climbers: ["", "", "", ""],
+            routes: [
+                { selectedRoute: "", heights: ["", "", "", ""], allTopBonus: "NON" },
+                { selectedRoute: "", heights: ["", "", "", ""], allTopBonus: "NON" },
+                { selectedRoute: "", heights: ["", "", "", ""], allTopBonus: "NON" }
+            ],
+            safetyFaults: 0
+        };
+
+        /**
+         * Formate un nombre en français (ex: 3.5 -> "3,5", 5 -> "5")
+         */
+        function formatPoints(num) {
+            if (num === null || num === undefined || isNaN(num)) return "0";
+            return Number.isInteger(num) ? num.toString() : num.toString().replace(".", ",");
+        }
+
+        /**
+         * Retourne le libellé d'une voie choisie (ou "Non choisie" si vide)
+         */
+        function getRouteDisplayLabel(routeNumber) {
+            return routeNumber ? `Voie ${routeNumber}` : "Non choisie";
+        }
+
+        /**
+         * Retourne le nom d'affichage du grimpeur i (Prénom saisi ou "Grimpeur X")
+         */
+        function getClimberDisplayName(index) {
+            const raw = appState.climbers[index]?.trim();
+            return raw ? raw : `Grimpeur ${index + 1}`;
+        }
+
+        /**
+         * Calcule les points obtenus par un grimpeur donné sur une voie donnée
+         */
+        function getClimberRoutePoints(routeIdx, climberIdx) {
+            const routeObj = appState.routes[routeIdx];
+            const height = routeObj.heights[climberIdx];
+            if (!routeObj.selectedRoute || !height || !ROUTES_SCALE[routeObj.selectedRoute]) return 0;
+            return ROUTES_SCALE[routeObj.selectedRoute][height] || 0;
+        }
+
+        /**
+         * Calcule le total d'une voie (somme des points des grimpeurs actifs + 10 si bonus TOP = OUI)
+         */
+        function getRouteTotalPoints(routeIdx) {
+            let sum = 0;
+            for (let c = 0; c < appState.groupSize; c++) {
+                sum += getClimberRoutePoints(routeIdx, c);
+            }
+            if (appState.routes[routeIdx].allTopBonus === "OUI") {
+                sum += 10;
+            }
+            return sum;
+        }
+
+        /**
+         * Affiche une notification toast temporaire
+         */
+        let toastTimeout;
+        function showToast(msg) {
+            const toast = document.getElementById("toastNotification");
+            const toastMsg = document.getElementById("toastMessage");
+            toastMsg.textContent = msg;
+            toast.classList.remove("translate-y-20", "opacity-0");
+            clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => {
+                toast.classList.add("translate-y-20", "opacity-0");
+            }, 3000);
+        }
+
+        /**
+         * =========================================================================
+         * 3. RENDU DU TABLEAU BARÈME (ACCORDÉON EN-TÊTE)
+         * =========================================================================
+         */
+        function renderBaremeTable() {
+            const tbody = document.getElementById("baremeTableBody");
+            tbody.innerHTML = HEIGHT_LEVELS.map(level => {
+                const isTop = level === "TOP";
+                const cells = Object.keys(ROUTES_SCALE).map(routeNum => {
+                    const val = formatPoints(ROUTES_SCALE[routeNum][level]);
+                    return `<td class="py-2 px-2.5 border-r border-slate-800/80 ${isTop ? 'font-bold text-crag-400' : ''}">${val}</td>`;
+                }).join("");
+
+                return `
+                    <tr class="${isTop ? 'bg-slate-800/60' : 'hover:bg-slate-800/40'}">
+                        <td class="py-2 px-3 text-left font-bold sticky left-0 bg-slate-900 border-r border-slate-700 ${isTop ? 'text-crag-400' : 'text-white'}">${level}</td>
+                        ${cells}
+                    </tr>
+                `;
+            }).join("");
+        }
+
+        /**
+         * =========================================================================
+         * 4. RENDU DES ÉTAPES 2, 3 ET 4 (1ère Voie, 2ème Voie, 3ème Voie)
+         * =========================================================================
+         */
+                // Options du menu déroulant Voie 1 à Voie 13 (avec option non choisie par défaut)
+                const routeOptions = [
+                    `<option value="" ${routeState.selectedRoute === "" ? "selected" : ""}>-- Choisir une voie --</option>`,
+                    ...Array.from({ length: 13 }, (_, i) => {
+                        const num = i + 1;
+                        return `<option value="${num}" ${routeState.selectedRoute === num ? "selected" : ""}>Voie ${num}</option>`;
+                    })
+                ].join("");
+
+                // Lignes du tableau de saisie des hauteurs
+                let inputRowsHtml = "";
+                for (let c = 0; c < appState.groupSize; c++) {
+                    const climberName = getClimberDisplayName(c);
+                    const currentHeight = routeState.heights[c];
+                    const pts = getClimberRoutePoints(rIdx, c);
+                    const hasScore = Boolean(routeState.selectedRoute && currentHeight);
+
+                    const heightOptions = [
+                        `<option value="" ${currentHeight === "" ? "selected" : ""}>-- Non renseigné --</option>`,
+                        ...HEIGHT_LEVELS.map(h => `<option value="${h}" ${currentHeight === h ? "selected" : ""}>${h}</option>`)
+                    ].join("");
+
+                    inputRowsHtml += `
+                        <tr class="border-b border-slate-200 last:border-b-0 hover:bg-slate-50/80 transition">
+                            <td class="py-3 px-4 font-semibold text-slate-800 text-left climber-label-${c}">${escapeHtml(climberName)}</td>
+                            <td class="py-2.5 px-3">
+                                <select data-route="${rIdx}" data-climber="${c}" class="height-select w-full sm:w-48 bg-white border ${currentHeight ? 'border-alpine-400 text-slate-900 font-semibold' : 'border-slate-300 text-slate-500'} text-xs sm:text-sm rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-alpine-500 cursor-pointer">
+                                    ${heightOptions}
+                                </select>
+                            </td>
+                            <td class="py-3 px-4 font-extrabold text-alpine-700 text-base" id="route-${rIdx}-climber-${c}-pts">
+                                ${hasScore ? formatPoints(pts) : "-"}
+                            </td>
+                        </tr>
+                    `;
+                }
+
+                // Lignes du tableau récapitulatif de la voie avec colonne fusionnée TOTAL
+                let recapRowsHtml = "";
+                const totalRoutePts = getRouteTotalPoints(rIdx);
+                for (let c = 0; c < appState.groupSize; c++) {
+                    const climberName = getClimberDisplayName(c);
+                    const currentHeight = routeState.heights[c] || "Non renseigné";
+                    const pts = getClimberRoutePoints(rIdx, c);
+                    const hasScore = Boolean(routeState.selectedRoute && routeState.heights[c]);
+
+                    recapRowsHtml += `
+                        <tr class="border-b border-slate-200 last:border-b-0">
+                            <td class="py-2.5 px-4 font-semibold text-slate-700 text-left climber-label-${c}">${escapeHtml(climberName)}</td>
+                            <td class="py-2.5 px-3 text-slate-700 font-medium" id="recap-${rIdx}-climber-${c}-height">${currentHeight}</td>
+                            <td class="py-2.5 px-3 font-bold text-slate-800" id="recap-${rIdx}-climber-${c}-pts">${hasScore ? formatPoints(pts) : "-"}</td>
+                            ${c === 0 ? `
+                                <td rowspan="${appState.groupSize}" id="recap-${rIdx}-total-cell" class="py-3 px-4 bg-alpine-50/90 border-l border-slate-200 font-extrabold text-xl text-alpine-900 align-middle">
+                                    <div>${formatPoints(totalRoutePts)}</div>
+                                    ${routeState.allTopBonus === "OUI" ? `<span class="inline-block mt-1 text-[10px] font-bold uppercase tracking-wide bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">+10 pts Bonus TOP</span>` : ''}
+                                </td>
+                            ` : ''}
+                        </tr>
+                    `;
+                }
+
+                return `
+                    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/90 overflow-hidden" id="section-route-${rIdx}">
+                        <div class="bg-slate-800 text-white px-5 py-3.5 flex items-center justify-between">
+                            <div class="flex items-center gap-2.5">
+                                <span class="${meta.badgeColor} text-white text-xs font-extrabold px-2.5 py-1 rounded-lg">ÉTAPE ${stepNumber}</span>
+                                <h2 class="font-bold text-base sm:text-lg">${meta.title}</h2>
+                            </div>
+                            <span class="text-xs font-semibold text-crag-400" id="badge-route-${rIdx}">${getRouteDisplayLabel(routeState.selectedRoute)}</span>
+                        </div>
+                            <span class="text-xs font-semibold text-crag-400" id="badge-route-${rIdx}">Voie ${routeState.selectedRoute}</span>
+                        </div>
+
+                        <div class="p-5 sm:p-6 space-y-6">
+                            <!-- Question choix de la voie -->
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200/80">
+                                <label for="routeSelect-${rIdx}" class="font-semibold text-slate-800 text-sm sm:text-base">
+                                    ${meta.title} : Quelle voie a été choisie ?
+                                </label>
+                                <select id="routeSelect-${rIdx}" data-route="${rIdx}" class="route-number-select w-full sm:w-52 bg-white border border-slate-300 text-slate-900 font-bold text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-alpine-500 shadow-sm cursor-pointer">
+                                    ${routeOptions}
+                                </select>
+                            </div>
+
+                            <!-- Tableau 1 : Saisie des hauteurs atteintes -->
+                            <div class="overflow-x-auto table-scroll rounded-xl border border-slate-200">
+                                <table class="w-full text-sm text-center border-collapse">
+                                    <thead>
+                                        <tr class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                                            <th class="py-3 px-4 text-left w-1/3">${meta.title}</th>
+                                            <th class="py-3 px-3 w-1/3">Hauteur atteinte</th>
+                                            <th class="py-3 px-4 w-1/3">Points obtenus</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${inputRowsHtml}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- Question Bonus TOP collectif -->
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-emerald-50/70 p-4 rounded-xl border border-emerald-200/80">
+                                <div>
+                                    <label for="allTopSelect-${rIdx}" class="font-semibold text-slate-800 text-sm sm:text-base block">
+                                        Est-ce que tous les grimpeurs sont arrivés au TOP ?
+                                    </label>
+                                    <p class="text-xs text-slate-600 mt-0.5">Si <strong>OUI</strong>, un bonus collectif de <strong>+10 points</strong> est ajouté au total de la voie.</p>
+                                </div>
+                                <select id="allTopSelect-${rIdx}" data-route="${rIdx}" class="all-top-select w-full sm:w-40 bg-white border border-emerald-300 text-slate-900 font-bold text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm cursor-pointer">
+                                    <option value="NON" ${routeState.allTopBonus === "NON" ? "selected" : ""}>NON</option>
+                                    <option value="OUI" ${routeState.allTopBonus === "OUI" ? "selected" : ""}>OUI (+10 pts)</option>
+                                </select>
+                            </div>
+
+                            <!-- Tableau 2 : Tableau récapitulatif avec TOTAL de la voie -->
+                            <div>
+                                <p class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Récapitulatif ${meta.title}</p>
+                                <div class="overflow-x-auto table-scroll rounded-xl border border-slate-200">
+                                    <table class="w-full text-xs sm:text-sm text-center border-collapse">
+                                        <thead>
+                                            <tr class="bg-slate-800 text-white font-semibold">
+                                                <th class="py-2.5 px-4 text-left">${meta.title}</th>
+                                                <th class="py-2.5 px-3">Hauteur atteinte</th>
+                                                <th class="py-2.5 px-3">Points obtenus</th>
+                                                <th class="py-2.5 px-4 bg-alpine-800">TOTAL ${meta.title}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="bg-white">
+                                            ${recapRowsHtml}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                `;
+            }).join("");
+
+            attachRouteEventListeners();
+        }
+
+        /**
+         * =========================================================================
+         * 5. MISE À JOUR EN TEMPS RÉEL DES CALCULS & TABLEAUX RÉCAPITULATIFS
+         * =========================================================================
+         */
+        function updateAllCalculations() {
+            // 1. Mise à jour des totaux par voie et cellules individuelles
+            for (let r = 0; r < 3; r++) {
+                const routeObj = appState.routes[r];
+                const badgeEl = document.getElementById(`badge-route-${r}`);
+                if (badgeEl) badgeEl.textContent = getRouteDisplayLabel(routeObj.selectedRoute);
+
+                for (let c = 0; c < appState.groupSize; c++) {
+                    const pts = getClimberRoutePoints(r, c);
+                    const height = routeObj.heights[c] || "Non renseigné";
+                    const hasScore = Boolean(routeObj.selectedRoute && routeObj.heights[c]);
+
+                    const ptsCell = document.getElementById(`route-${r}-climber-${c}-pts`);
+                    if (ptsCell) ptsCell.textContent = hasScore ? formatPoints(pts) : "-";
+
+                    const recapHeightCell = document.getElementById(`recap-${r}-climber-${c}-height`);
+                    if (recapHeightCell) recapHeightCell.textContent = height;
+
+                    const recapPtsCell = document.getElementById(`recap-${r}-climber-${c}-pts`);
+                    if (recapPtsCell) recapPtsCell.textContent = hasScore ? formatPoints(pts) : "-";
+                }
+
+                const routeTotal = getRouteTotalPoints(r);
+                const totalCell = document.getElementById(`recap-${r}-total-cell`);
+                if (totalCell) {
+                    totalCell.innerHTML = `
+                        <div>${formatPoints(routeTotal)}</div>
+                        ${routeObj.allTopBonus === "OUI" ? `<span class="inline-block mt-1 text-[10px] font-bold uppercase tracking-wide bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">+10 pts Bonus TOP</span>` : ''}
+                    `;
+                }
+            }
+
+            // 2. Calcul du tableau intermédiaire (Étape 5)
+            const t1 = getRouteTotalPoints(0);
+            const t2 = getRouteTotalPoints(1);
+            const t3 = getRouteTotalPoints(2);
+            const penalties = appState.safetyFaults * 3;
+            const sessionTotal = (t1 + t2 + t3) - penalties;
+
+            document.getElementById("summaryRoute1Total").textContent = formatPoints(t1);
+            document.getElementById("summaryRoute2Total").textContent = formatPoints(t2);
+            document.getElementById("summaryRoute3Total").textContent = formatPoints(t3);
+            document.getElementById("summaryPenaltyPoints").textContent = penalties > 0 ? `-${formatPoints(penalties)}` : "0";
+            document.getElementById("summarySessionTotal").textContent = formatPoints(sessionTotal);
+            document.getElementById("headerTotalScore").textContent = `${formatPoints(sessionTotal)} pt${Math.abs(sessionTotal) > 1 ? 's' : ''}`;
+
+            // 3. Mise à jour du tableau final (Étape 6)
+            renderFinalTable(t1, t2, t3, penalties, sessionTotal);
+
+            // 4. Vérification de complétude pour afficher/masquer le bouton d'envoi
+            checkFormCompletion();
+        }
+
+        /**
+         * Génère le tableau des résultats finaux selon la maquette exacte du cahier des charges
+         */
+        function renderFinalTable(t1, t2, t3, penalties, sessionTotal) {
+            document.getElementById("finalHeaderV1").textContent = appState.routes[0].selectedRoute ? `Voie N° ${appState.routes[0].selectedRoute}` : "Voie N° (Non choisie)";
+            document.getElementById("finalHeaderV2").textContent = appState.routes[1].selectedRoute ? `Voie N° ${appState.routes[1].selectedRoute}` : "Voie N° (Non choisie)";
+            document.getElementById("finalHeaderV3").textContent = appState.routes[2].selectedRoute ? `Voie N° ${appState.routes[2].selectedRoute}` : "Voie N° (Non choisie)";
+
+            const tbody = document.getElementById("finalResultsBody");
+            const totalRowsSpan = appState.groupSize + 1; // Grimpeurs + ligne Total Voie
+
+            let html = "";
+            for (let c = 0; c < appState.groupSize; c++) {
+                const name = getClimberDisplayName(c);
+                const h1 = appState.routes[0].heights[c] || "Non renseigné";
+                const p1 = (appState.routes[0].selectedRoute && appState.routes[0].heights[c]) ? formatPoints(getClimberRoutePoints(0, c)) : "-";
+                const h2 = appState.routes[1].heights[c] || "Non renseigné";
+                const p2 = (appState.routes[1].selectedRoute && appState.routes[1].heights[c]) ? formatPoints(getClimberRoutePoints(1, c)) : "-";
+                const h3 = appState.routes[2].heights[c] || "Non renseigné";
+                const p3 = (appState.routes[2].selectedRoute && appState.routes[2].heights[c]) ? formatPoints(getClimberRoutePoints(2, c)) : "-";
+
+                html += `
+                    <tr class="hover:bg-slate-50">
+                        <td class="py-2.5 px-3 font-bold text-slate-800 text-left border-r border-slate-200 sticky left-0 bg-white z-10">${escapeHtml(name)}</td>
+                        <td class="py-2.5 px-2.5 border-r border-slate-200 text-slate-700">${h1}</td>
+                        <td class="py-2.5 px-2.5 border-r border-slate-200 font-semibold text-slate-900">${p1}</td>
+                        <td class="py-2.5 px-2.5 border-r border-slate-200 text-slate-700">${h2}</td>
+                        <td class="py-2.5 px-2.5 border-r border-slate-200 font-semibold text-slate-900">${p2}</td>
+                        <td class="py-2.5 px-2.5 border-r border-slate-200 text-slate-700">${h3}</td>
+                        <td class="py-2.5 px-2.5 border-r border-slate-200 font-semibold text-slate-900">${p3}</td>
+                        ${c === 0 ? `
+                            <td rowspan="${totalRowsSpan}" class="py-3 px-3 border-r border-slate-200 bg-red-50/50 font-extrabold text-base text-red-700 align-middle">
+                                ${penalties > 0 ? `-${formatPoints(penalties)}` : '0'}
+                                <span class="block text-[10px] font-medium text-red-500 mt-0.5">(${appState.safetyFaults} faute${appState.safetyFaults > 1 ? 's' : ''})</span>
+                            </td>
+                            <td rowspan="${totalRowsSpan}" class="py-3 px-3 bg-emerald-50/70 font-extrabold text-xl text-emerald-900 align-middle">
+                                ${formatPoints(sessionTotal)} pts
+                            </td>
+                        ` : ''}
+                    </tr>
+                `;
+            }
+
+            // Ligne finale : Total Voie
+            html += `
+                <tr class="bg-slate-100 font-extrabold text-slate-900 border-t-2 border-slate-300">
+                    <td class="py-3 px-3 text-left border-r border-slate-300 sticky left-0 bg-slate-100 z-10">Total Voie</td>
+                    <td colspan="2" class="py-3 px-3 border-r border-slate-300 text-alpine-900 text-base">
+                        ${formatPoints(t1)} pts
+                        ${appState.routes[0].allTopBonus === "OUI" ? '<span class="block text-[10px] font-semibold text-emerald-700">(dont +10 bonus TOP)</span>' : ''}
+                    </td>
+                    <td colspan="2" class="py-3 px-3 border-r border-slate-300 text-alpine-900 text-base">
+                        ${formatPoints(t2)} pts
+                        ${appState.routes[1].allTopBonus === "OUI" ? '<span class="block text-[10px] font-semibold text-emerald-700">(dont +10 bonus TOP)</span>' : ''}
+                    </td>
+                    <td colspan="2" class="py-3 px-3 border-r border-slate-300 text-alpine-900 text-base">
+                        ${formatPoints(t3)} pts
+                        ${appState.routes[2].allTopBonus === "OUI" ? '<span class="block text-[10px] font-semibold text-emerald-700">(dont +10 bonus TOP)</span>' : ''}
+                    </td>
+                </tr>
+            `;
+
+            tbody.innerHTML = html;
+        }
+
+        /**
+         * Met à jour l'indicateur discret de complétude sans jamais bloquer ni masquer le bouton d'envoi
+         */
+        function checkFormCompletion() {
+            const missingItems = [];
+
+            // Vérifier les prénoms des grimpeurs du groupe
+            let missingNames = 0;
+            for (let c = 0; c < appState.groupSize; c++) {
+                if (!appState.climbers[c].trim()) {
+                    missingNames++;
+                }
+            }
+            if (missingNames > 0) {
+                missingItems.push(`${missingNames} prénom${missingNames > 1 ? 's' : ''}`);
+            }
+
+            // Vérifier les numéros de voies choisis
+            let missingRoutes = 0;
+            for (let r = 0; r < 3; r++) {
+                if (!appState.routes[r].selectedRoute) {
+                    missingRoutes++;
+                }
+            }
+            if (missingRoutes > 0) {
+                missingItems.push(`${missingRoutes} voie${missingRoutes > 1 ? 's' : ''} non choisie${missingRoutes > 1 ? 's' : ''}`);
+            }
+
+            // Vérifier les hauteurs atteintes sur les 3 voies
+            let missingHeights = 0;
+            for (let r = 0; r < 3; r++) {
+                for (let c = 0; c < appState.groupSize; c++) {
+                    if (!appState.routes[r].heights[c]) {
+                        missingHeights++;
+                    }
+                }
+            }
+            if (missingHeights > 0) {
+                missingItems.push(`${missingHeights} hauteur${missingHeights > 1 ? 's' : ''}`);
+            }
+
+            const incompleteNotice = document.getElementById("incompleteNotice");
+            const missingFieldsText = document.getElementById("missingFieldsText");
+            const statusBadge = document.getElementById("completionStatusBadge");
+            const sendBannerCard = document.getElementById("sendBannerCard");
+            const sendBannerIcon = document.getElementById("sendBannerIcon");
+            const sendBannerTitle = document.getElementById("sendBannerTitle");
+
+            // Toujours actualiser le texte de prévisualisation du mail
+            document.getElementById("emailPreviewContent").textContent = buildFormattedEmailBody();
+
+            if (missingItems.length === 0) {
+                incompleteNotice.classList.add("hidden");
+                statusBadge.className = "inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-200 border border-emerald-400/40";
+                statusBadge.textContent = "Saisie complète";
+
+                sendBannerCard.className = "bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 transition-colors";
+                sendBannerIcon.className = "bg-emerald-500 text-white p-2 rounded-full flex-shrink-0";
+                sendBannerTitle.textContent = "Toutes les données sont complètes — Prêt à envoyer";
+                sendBannerTitle.className = "font-bold text-emerald-900 text-sm sm:text-base";
+            } else {
+                incompleteNotice.classList.remove("hidden");
+                missingFieldsText.textContent = `Champs non renseignés (${missingItems.join(", ")}) : ils seront indiqués comme « Non renseigné » (0 pt) dans le mail.`;
+                statusBadge.className = "inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full bg-amber-500/20 text-amber-200 border border-amber-400/30";
+                statusBadge.textContent = "Saisie partielle — envoi possible";
+
+                sendBannerCard.className = "bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 transition-colors";
+                sendBannerIcon.className = "bg-alpine-600 text-white p-2 rounded-full flex-shrink-0";
+                sendBannerTitle.textContent = "Envoyer les résultats par mail (même partiels)";
+                sendBannerTitle.className = "font-bold text-slate-900 text-sm sm:text-base";
+            }
+        }
+
+        /**
+         * =========================================================================
+         * 6. FORMATAGE DU MAIL & ENVOI VERS romain.griot@gmail.com
+         * =========================================================================
+         */
+        function buildFormattedEmailBody() {
+            const t1 = getRouteTotalPoints(0);
+            const t2 = getRouteTotalPoints(1);
+            const t3 = getRouteTotalPoints(2);
+            const penalties = appState.safetyFaults * 3;
+            const sessionTotal = (t1 + t2 + t3) - penalties;
+
+            const v1Label = appState.routes[0].selectedRoute ? `Voie N°${appState.routes[0].selectedRoute}` : "Non choisie";
+            const v2Label = appState.routes[1].selectedRoute ? `Voie N°${appState.routes[1].selectedRoute}` : "Non choisie";
+            const v3Label = appState.routes[2].selectedRoute ? `Voie N°${appState.routes[2].selectedRoute}` : "Non choisie";
+
+            const climberNamesList = [];
+            for (let c = 0; c < appState.groupSize; c++) {
+                climberNamesList.push(getClimberDisplayName(c));
+            }
+
+            let lines = [];
+            lines.push("RÉSULTATS DE LA SÉANCE D'ESCALADE");
+            lines.push("==================================================");
+            lines.push(`Composition du groupe (${appState.groupSize} personnes) : ${climberNamesList.join(", ")}`);
+            lines.push("");
+
+            // Détail par grimpeur
+            lines.push("DÉTAIL PAR GRIMPEUR :");
+            lines.push("--------------------------------------------------");
+            for (let c = 0; c < appState.groupSize; c++) {
+                const name = getClimberDisplayName(c);
+
+                const h1 = appState.routes[0].heights[c] || "Non renseigné";
+                const p1 = (appState.routes[0].selectedRoute && appState.routes[0].heights[c])
+                    ? `${formatPoints(getClimberRoutePoints(0, c))} pts`
+                    : "0 pt (-)";
+
+                const h2 = appState.routes[1].heights[c] || "Non renseigné";
+                const p2 = (appState.routes[1].selectedRoute && appState.routes[1].heights[c])
+                    ? `${formatPoints(getClimberRoutePoints(1, c))} pts`
+                    : "0 pt (-)";
+
+                const h3 = appState.routes[2].heights[c] || "Non renseigné";
+                const p3 = (appState.routes[2].selectedRoute && appState.routes[2].heights[c])
+                    ? `${formatPoints(getClimberRoutePoints(2, c))} pts`
+                    : "0 pt (-)";
+
+                lines.push(`• ${name} :`);
+                lines.push(`   - 1ère Voie (${v1Label}) : ${h1} -> ${p1}`);
+                lines.push(`   - 2ème Voie (${v2Label}) : ${h2} -> ${p2}`);
+                lines.push(`   - 3ème Voie (${v3Label}) : ${h3} -> ${p3}`);
+            }
+
+            lines.push("");
+            lines.push("TOTAUX PAR VOIE :");
+            lines.push("--------------------------------------------------");
+            lines.push(`• Total 1ère Voie (${v1Label}) : ${formatPoints(t1)} pts (Tous au TOP : ${appState.routes[0].allTopBonus})`);
+            lines.push(`• Total 2ème Voie (${v2Label}) : ${formatPoints(t2)} pts (Tous au TOP : ${appState.routes[1].allTopBonus})`);
+            lines.push(`• Total 3ème Voie (${v3Label}) : ${formatPoints(t3)} pts (Tous au TOP : ${appState.routes[2].allTopBonus})`);
+
+            lines.push("");
+            lines.push("BILAN SÉCURITÉ & SCORE FINAL :");
+            lines.push("==================================================");
+            lines.push(`• Fautes sécurité : ${appState.safetyFaults} (Points pénalités : -${formatPoints(penalties)} pts)`);
+            lines.push(`• NOMBRE TOTAL DE POINTS SUR LA SÉANCE : ${formatPoints(sessionTotal)} pts`);
+            lines.push("==================================================");
+
+            return lines.join("\n");
+        }
+
+        function triggerMailtoSend() {
+            const recipient = "romain.griot@gmail.com";
+            const names = [];
+            for (let c = 0; c < appState.groupSize; c++) {
+                names.push(getClimberDisplayName(c));
+            }
+            const subject = `Résultats Séance Escalade - Groupe (${names.join(", ")})`;
+            const body = buildFormattedEmailBody();
+
+            const mailtoUrl = `mailto:${recipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+            window.location.href = mailtoUrl;
+            showToast("Ouverture de votre messagerie vers romain.griot@gmail.com...");
+        }
+
+        /**
+         * =========================================================================
+         * 7. GESTION DES ÉVÉNEMENTS UTILISATEUR
+         * =========================================================================
+         */
+        function attachRouteEventListeners() {
+            // Changement du numéro de voie (Voie 1 à Voie 13)
+            document.querySelectorAll(".route-number-select").forEach(select => {
+                select.addEventListener("change", (e) => {
+                    const rIdx = parseInt(e.target.dataset.route, 10);
+                    const val = e.target.value;
+                    appState.routes[rIdx].selectedRoute = val ? parseInt(val, 10) : "";
+                    updateAllCalculations();
+                });
+            });
+
+            // Changement de la hauteur atteinte par un grimpeur
+            document.querySelectorAll(".height-select").forEach(select => {
+                select.addEventListener("change", (e) => {
+                    const rIdx = parseInt(e.target.dataset.route, 10);
+                    const cIdx = parseInt(e.target.dataset.climber, 10);
+                    const val = e.target.value;
+                    appState.routes[rIdx].heights[cIdx] = val;
+
+                    // Mise en valeur visuelle du sélecteur une fois rempli
+                    if (val) {
+                        e.target.classList.remove("border-slate-300", "text-slate-500");
+                        e.target.classList.add("border-alpine-400", "text-slate-900", "font-semibold");
+                    } else {
+                        e.target.classList.add("border-slate-300", "text-slate-500");
+                        e.target.classList.remove("border-alpine-400", "text-slate-900", "font-semibold");
+                    }
+
+                    // Suggestion automatique intelligente pour "Tous au TOP" si tous les grimpeurs actifs sont au TOP
+                    let allAreTop = true;
+                    for (let c = 0; c < appState.groupSize; c++) {
+                        if (appState.routes[rIdx].heights[c] !== "TOP") {
+                            allAreTop = false;
+                            break;
+                        }
+                    }
+                    const bonusSelect = document.getElementById(`allTopSelect-${rIdx}`);
+                    if (allAreTop && appState.routes[rIdx].allTopBonus !== "OUI") {
+                        appState.routes[rIdx].allTopBonus = "OUI";
+                        if (bonusSelect) bonusSelect.value = "OUI";
+                        showToast(`Bonus +10 pts activé automatiquement (tous au TOP sur la ${ROUTE_LABELS[rIdx].title}) !`);
+                    } else if (!allAreTop && appState.routes[rIdx].allTopBonus === "OUI") {
+                        appState.routes[rIdx].allTopBonus = "NON";
+                        if (bonusSelect) bonusSelect.value = "NON";
+                    }
+
+                    updateAllCalculations();
+                });
+            });
+
+            // Changement manuel du menu déroulant "Est-ce que tous les grimpeurs sont arrivés au TOP ? OUI/NON"
+            document.querySelectorAll(".all-top-select").forEach(select => {
+                select.addEventListener("change", (e) => {
+                    const rIdx = parseInt(e.target.dataset.route, 10);
+                    appState.routes[rIdx].allTopBonus = e.target.value;
+                    updateAllCalculations();
+                });
+            });
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement("div");
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        /**
+         * Initialisation au chargement de la page
+         */
+        document.addEventListener("DOMContentLoaded", () => {
+            renderBaremeTable();
+            renderRoutesSections();
+            updateAllCalculations();
+
+            // Accordéon Barème
+            const toggleBaremeBtn = document.getElementById("toggleBaremeBtn");
+            const closeBaremeBtn = document.getElementById("closeBaremeBtn");
+            const baremeDrawer = document.getElementById("baremeDrawer");
+            const baremeChevron = document.getElementById("baremeChevron");
+
+            function toggleBareme() {
+                const isHidden = baremeDrawer.classList.contains("hidden");
+                baremeDrawer.classList.toggle("hidden");
+                baremeChevron.style.transform = isHidden ? "rotate(180deg)" : "rotate(0deg)";
+            }
+
+            toggleBaremeBtn.addEventListener("click", toggleBareme);
+            closeBaremeBtn.addEventListener("click", toggleBareme);
+
+            // Changement du nombre de personnes dans le groupe (3 ou 4)
+            const groupSizeSelect = document.getElementById("groupSizeSelect");
+            const climber4Wrapper = document.getElementById("climber4Wrapper");
+
+            groupSizeSelect.addEventListener("change", (e) => {
+                appState.groupSize = parseInt(e.target.value, 10);
+                if (appState.groupSize === 4) {
+                    climber4Wrapper.classList.remove("hidden");
+                } else {
+                    climber4Wrapper.classList.add("hidden");
+                }
+                renderRoutesSections();
+                updateAllCalculations();
+            });
+
+            // Saisie en direct des prénoms des grimpeurs
+            document.querySelectorAll(".climber-name-input").forEach(input => {
+                input.addEventListener("input", (e) => {
+                    const idx = parseInt(e.target.dataset.index, 10);
+                    appState.climbers[idx] = e.target.value;
+                    const displayName = getClimberDisplayName(idx);
+
+                    // Mise à jour instantanée des libellés dans les tableaux des 3 voies
+                    document.querySelectorAll(`.climber-label-${idx}`).forEach(cell => {
+                        cell.textContent = displayName;
+                    });
+
+                    // Mise à jour du tableau final et de l'état de complétude
+                    updateAllCalculations();
+                });
+            });
+
+            // Changement du nombre de fautes sécurité (0 à 7)
+            document.getElementById("safetyFaultsSelect").addEventListener("change", (e) => {
+                appState.safetyFaults = parseInt(e.target.value, 10);
+                updateAllCalculations();
+            });
+
+            // Bouton Prévisualiser le mail
+            document.getElementById("previewEmailBtn").addEventListener("click", () => {
+                const previewBox = document.getElementById("emailPreviewBox");
+                const previewContent = document.getElementById("emailPreviewContent");
+                previewContent.textContent = buildFormattedEmailBody();
+                previewBox.classList.toggle("hidden");
+            });
+
+            // Bouton Envoyer les résultats (mailto)
+            document.getElementById("sendEmailBtn").addEventListener("click", triggerMailtoSend);
+
+            // Bouton Copier le récapitulatif dans le presse-papier
+            document.getElementById("copyResultsBtn").addEventListener("click", () => {
+                const text = buildFormattedEmailBody();
+                const tempTextarea = document.createElement("textarea");
+                tempTextarea.value = text;
+                document.body.appendChild(tempTextarea);
+                tempTextarea.select();
+                try {
+                    document.execCommand("copy");
+                    showToast("Récapitulatif copié dans le presse-papier !");
+                } catch (err) {
+                    showToast("Impossible de copier automatiquement.");
+                }
+                document.body.removeChild(tempTextarea);
+            });
+
+            // Modale de réinitialisation
+            const confirmModal = document.getElementById("confirmModal");
+            document.getElementById("resetAppBtn").addEventListener("click", () => {
+                confirmModal.classList.remove("hidden");
+            });
+            document.getElementById("cancelResetBtn").addEventListener("click", () => {
+                confirmModal.classList.add("hidden");
+            });
+            document.getElementById("confirmResetBtn").addEventListener("click", () => {
+                appState = {
+                    groupSize: 4,
+                    climbers: ["", "", "", ""],
+                    routes: [
+                        { selectedRoute: "", heights: ["", "", "", ""], allTopBonus: "NON" },
+                        { selectedRoute: "", heights: ["", "", "", ""], allTopBonus: "NON" },
+                        { selectedRoute: "", heights: ["", "", "", ""], allTopBonus: "NON" }
+                    ],
+                    safetyFaults: 0
+                };
+                groupSizeSelect.value = "4";
+                climber4Wrapper.classList.remove("hidden");
+                document.querySelectorAll(".climber-name-input").forEach(inp => inp.value = "");
+                document.getElementById("safetyFaultsSelect").value = "0";
+                document.getElementById("emailPreviewBox").classList.add("hidden");
+
+                renderRoutesSections();
+                updateAllCalculations();
+                confirmModal.classList.add("hidden");
+                showToast("Fiche de séance réinitialisée.");
+            });
+        });
+    </script>
+</body>
+</html>
